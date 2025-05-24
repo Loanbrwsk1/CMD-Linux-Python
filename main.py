@@ -2,10 +2,6 @@
 @author: Loan Borowski
 """
 
-"""
-TODO: ls cd mkdir cat touch rmdir pwd 
-"""
-
 #? Imports
 import customtkinter as ctk
 import json
@@ -72,7 +68,6 @@ class Terminal:
 
     def execute_command(self, command):
         parts = command.split()
-        print(parts)
         if len(parts) == 0:
             cli.display_output("\n")
             return
@@ -100,10 +95,13 @@ class Terminal:
             self.mkdir(command, args)
         elif cmd == "rmdir":
             self.rmdir(command, args)
+        elif cmd == "nano":
+            self.nano(command, args)
+        elif cmd == "quit" or cmd == "exit":
+            self.quit()
         else:
             cli.display_output_cmd("Command not found", command)
-
-                
+             
     def ls(self, command, args):
         path = self.fs.current_dir
         if args:
@@ -145,6 +143,7 @@ touch [file]  - Create a file
 rm [file]     - Delete a file
 mkdir [dir]   - Create a directory
 rmdir [dir]   - Delete a directory
+nano [file]   - Edit a file
 clear         - Clear terminal
 help          - Show this help message"""
         cli.display_output_cmd(help_text, command)
@@ -163,6 +162,9 @@ help          - Show this help message"""
         cli.display_output_cmd(self.fs.filesystem[path]["content"], command)
 
     def touch(self, command, args):
+        if not args:
+            cli.display_output_cmd("touch: missing file operand", command)
+            return
         path = f"{self.fs.current_dir}/{args}"
         if not path in self.fs.filesystem:
             self.fs.filesystem[f"{self.fs.current_dir}/{args}"] = {"type" : "file", "content" : ""}
@@ -170,9 +172,12 @@ help          - Show this help message"""
         cli.display_output_cmd("", command)
 
     def rm(self, command, args):
+        if not args:
+            cli.display_output_cmd("rm: missing file operand", command)
+            return
         path = self.fs.get_absolute_path(args)
         if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"rm: {args}: No such file or directory", command)
+            cli.display_output_cmd(f"rm: {args}: No such file", command)
             return
         if not self.fs.is_file(path):
             cli.display_output_cmd(f"rm: {args}: Is a directory", command)
@@ -185,6 +190,9 @@ help          - Show this help message"""
                 return
         
     def mkdir(self, command, args):
+        if not args:
+            cli.display_output_cmd("mkdir: missing directory operand", command)
+            return
         path = f"{self.fs.current_dir}/{args}"
         if not path in self.fs.filesystem:
             self.fs.filesystem[f"{self.fs.current_dir}/{args}"] = {"type" : "directory", "content" : []}
@@ -192,9 +200,12 @@ help          - Show this help message"""
         cli.display_output_cmd("", command)
 
     def rmdir(self, command, args):
+        if not args:
+            cli.display_output_cmd("rmdir: missing directory operand", command)
+            return
         path = self.fs.get_absolute_path(args)
         if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"rmdir: {args}: No such file or directory", command)
+            cli.display_output_cmd(f"rmdir: {args}: No such directory", command)
             return
         if self.fs.is_file(path):
             cli.display_output_cmd(f"rmdir: {args}: Is a file", command)
@@ -206,8 +217,39 @@ help          - Show this help message"""
                 cli.display_output_cmd("", command)
                 return
         
-        
+    def quit(self):
+        cli.running = False
+        cli.window.destroy()
 
+    def nano(self, command, args):
+        if "/" in args:
+            cli.display_output_cmd(f"nano: {args}: Don't use '/'", command)
+            return
+        if not args:
+            cli.display_output_cmd("nano: missing file operand", command)
+            return
+        path = self.fs.get_absolute_path(args)
+        if self.fs.is_directory(path):
+            cli.display_output_cmd(f"nano: {args}: No such file")
+            return
+        if not self.fs.path_exists(path):
+            cli.display_output_cmd(f"nano: {args}: No such directory")
+            return
+        self.nano_top_level = ctk.CTkToplevel(cli.window, fg_color="#000000")
+        self.nano_top_level.geometry("800x420+640+80")
+        self.nano_top_level.title(f"nano: {args}")
+        self.nano_textbox = ctk.CTkTextbox(self.nano_top_level, width=806, height=426, font=("Trebuchet MS", 15), fg_color="#000000")
+        cli.display_output_cmd("", command)
+        self.nano_top_level.bind("<Alt_L>", lambda _:self.save_file(path))
+        self.nano_textbox.insert("end", self.fs.filesystem[path]["content"])
+        self.nano_textbox.place(x=-3, y=-3)
+    
+    def save_file(self, path):
+        text = self.nano_textbox.get("0.0", "end")
+        self.fs.filesystem[path]["content"] = text
+        self.nano_top_level.destroy()
+
+        
 class CLI:
     def __init__(self):
         ctk.set_appearance_mode("dark")
@@ -224,11 +266,13 @@ class CLI:
         self.output_display.insert("end", f"{self.prompt} ")
         self.output_display.place(x=10, y=45)
         self.window.bind("<Return>", self.execute_command)
+        self.running = True
 
     def execute_command(self, event):
         command = self.entry.get()
         self.terminal.execute_command(command)
-        self.display_output(f"{self.get_prompt()} ")
+        if self.running:
+            self.display_output(f"{self.get_prompt()} ")
 
     def get_prompt(self):
         return f"(user@linux-device)-[{self.terminal.fs.current_dir}] $"
