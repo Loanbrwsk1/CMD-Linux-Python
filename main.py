@@ -34,11 +34,7 @@ class Filesysteme:
             },
             "/home/user/Documents" : {
                 "type" : "directory",
-                "content" : ["other_text.txt"]
-            },
-            "/home/user/Documents/other_text.txt" : {
-                "type" : "file",
-                "content" : "blablabla"
+                "content" : []
             }
         }
 
@@ -77,6 +73,9 @@ class Terminal:
     def execute_command(self, command):
         parts = command.split()
         print(parts)
+        if len(parts) == 0:
+            cli.display_output("\n")
+            return
         cmd = parts[0]
         args = parts[1] if len(parts) > 1 else ""
         cli.entry.delete(0, len(command))
@@ -93,6 +92,8 @@ class Terminal:
             self.help_cmd(command)
         elif cmd == "cat":
             self.cat_cmd(command, args)
+        elif cmd == "touch":
+            self.touch_cmd(command, args)
                 
     def ls_cmd(self, command, args):
         path = self.fs.current_dir
@@ -147,6 +148,14 @@ help          - Show this help message"""
         else:
             cli.display_output_cmd(f"cat: {args}: Is a directory", command)
 
+    def touch_cmd(self, command, args):
+        path = f"{self.fs.current_dir}/{args}"
+        if not path in self.fs.filesystem:
+            self.fs.filesystem[f"{self.fs.current_dir}/{args}"] = {"type" : "file", "content" : "blablabla"}
+            self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(args)
+            cli.display_output_cmd(f"File {args} creatad successfully !", command)
+        else:
+            cli.display_output("\n")
 
 class CLI:
     def __init__(self):
