@@ -81,21 +81,30 @@ class Terminal:
         cli.entry.delete(0, len(command))
 
         if cmd == "ls":
-            self.ls_cmd(command, args)
+            self.ls(command, args)
         elif cmd == "pwd":
-            self.pwd_cmd(cmd)
+            self.pwd(cmd)
         elif cmd == "clear":
-            self.clear_cmd()
+            self.clear()
         elif cmd == "cd":
-            self.cd_cmd(command, args)
+            self.cd(command, args)
         elif cmd == "help":
-            self.help_cmd(command)
+            self.help(command)
         elif cmd == "cat":
-            self.cat_cmd(command, args)
+            self.cat(command, args)
         elif cmd == "touch":
-            self.touch_cmd(command, args)
+            self.touch(command, args)
+        elif cmd == "rm":
+            self.rm(command, args)
+        elif cmd == "mkdir":
+            self.mkdir(command, args)
+        elif cmd == "rmdir":
+            self.rmdir(command, args)
+        else:
+            cli.display_output_cmd("Command not found", command)
+
                 
-    def ls_cmd(self, command, args):
+    def ls(self, command, args):
         path = self.fs.current_dir
         if args:
             path = self.fs.get_absolute_path(args)
@@ -106,15 +115,15 @@ class Terminal:
             cli.display_output_cmd(f"ls: {args if args else path}: Not a directory", command)
             return
         self.output = self.fs.filesystem[path]["content"]
-        cli.display_output_ls(self.output, path)
+        cli.display_output_ls(self.output, path, command)
 
-    def pwd_cmd(self, command):
+    def pwd(self, command):
         cli.display_output_pwd(self.fs.current_dir, command)
 
-    def clear_cmd(self):
+    def clear(self):
         cli.clear()
 
-    def cd_cmd(self, command, args):
+    def cd(self, command, args):
         if not args:
                 self.fs.current_dir = "/home/user"
         elif args in self.fs.filesystem[self.fs.current_dir]["content"] and self.fs.filesystem[self.fs.current_dir]["type"] == "directory":
@@ -126,36 +135,78 @@ class Terminal:
             return
         cli.display_output_cmd(self.fs.current_dir, command)
 
-    def help_cmd(self, command):
+    def help(self, command):
         help_text = """Available commands:
 ls [path]     - List directory contents
 pwd           - Print working directory
 cd [path]     - Change directory
 cat [file]    - Display file contents
+touch [file]  - Create a file
+rm [file]     - Delete a file
+mkdir [dir]   - Create a directory
+rmdir [dir]   - Delete a directory
 clear         - Clear terminal
 help          - Show this help message"""
         cli.display_output_cmd(help_text, command)
 
-    def cat_cmd(self, command, args):
+    def cat(self, command, args):
         if not args:
             cli.display_output_cmd("cat: missing file operand", command)
             return
         path = self.fs.get_absolute_path(args)
         if not self.fs.path_exists(path):
             cli.display_output_cmd(f"cat: {args}: No such file or directory", command)
-        if self.fs.is_file(path):
-            cli.display_output_cmd(self.fs.filesystem[path]["content"], command)
-        else:
+            return
+        if not self.fs.is_file(path):
             cli.display_output_cmd(f"cat: {args}: Is a directory", command)
+            return
+        cli.display_output_cmd(self.fs.filesystem[path]["content"], command)
 
-    def touch_cmd(self, command, args):
+    def touch(self, command, args):
         path = f"{self.fs.current_dir}/{args}"
         if not path in self.fs.filesystem:
-            self.fs.filesystem[f"{self.fs.current_dir}/{args}"] = {"type" : "file", "content" : "blablabla"}
+            self.fs.filesystem[f"{self.fs.current_dir}/{args}"] = {"type" : "file", "content" : ""}
             self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(args)
-            cli.display_output_cmd(f"File {args} creatad successfully !", command)
-        else:
-            cli.display_output("\n")
+        cli.display_output_cmd("", command)
+
+    def rm(self, command, args):
+        path = self.fs.get_absolute_path(args)
+        if not self.fs.path_exists(path):
+            cli.display_output_cmd(f"rm: {args}: No such file or directory", command)
+            return
+        if not self.fs.is_file(path):
+            cli.display_output_cmd(f"rm: {args}: Is a directory", command)
+            return
+        self.fs.filesystem.pop(path)
+        for v in self.fs.filesystem.values():
+            if args in v["content"]:
+                v["content"].remove(args)
+                cli.display_output_cmd("", command)
+                return
+        
+    def mkdir(self, command, args):
+        path = f"{self.fs.current_dir}/{args}"
+        if not path in self.fs.filesystem:
+            self.fs.filesystem[f"{self.fs.current_dir}/{args}"] = {"type" : "directory", "content" : []}
+            self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(args)
+        cli.display_output_cmd("", command)
+
+    def rmdir(self, command, args):
+        path = self.fs.get_absolute_path(args)
+        if not self.fs.path_exists(path):
+            cli.display_output_cmd(f"rmdir: {args}: No such file or directory", command)
+            return
+        if self.fs.is_file(path):
+            cli.display_output_cmd(f"rmdir: {args}: Is a file", command)
+            return
+        self.fs.filesystem.pop(path)
+        for v in self.fs.filesystem.values():
+            if args in v["content"]:
+                v["content"].remove(args)
+                cli.display_output_cmd("", command)
+                return
+        
+        
 
 class CLI:
     def __init__(self):
@@ -185,8 +236,8 @@ class CLI:
     def display_output(self, content):
         self.output_display.insert("end", content)
 
-    def display_output_ls(self, content, path):
-        self.output_display.insert("end", "ls\n")
+    def display_output_ls(self, content, path, command):
+        self.output_display.insert("end", f"{command}\n")
         for i in range(len(content)):
             if self.terminal.fs.filesystem[f"{path}/{content[i]}"]["type"] == "directory":
                 self.output_display.insert("end", f"[d]{content[i]}    ")
