@@ -34,7 +34,11 @@ class Filesysteme:
             },
             "/home/user/Documents" : {
                 "type" : "directory",
-                "content" : []
+                "content" : ["other_text.txt"]
+            },
+            "/home/user/Documents/other_text.txt" : {
+                "type" : "file",
+                "content" : "blablabla"
             }
         }
 
@@ -79,14 +83,16 @@ class Terminal:
 
         if cmd == "ls":
             self.ls_cmd(command, args)
-        if cmd == "pwd":
+        elif cmd == "pwd":
             self.pwd_cmd(cmd)
-        if cmd == "clear":
+        elif cmd == "clear":
             self.clear_cmd()
-        if cmd == "cd":
+        elif cmd == "cd":
             self.cd_cmd(command, args)
-        if cmd == "help":
+        elif cmd == "help":
             self.help_cmd(command)
+        elif cmd == "cat":
+            self.cat_cmd(command, args)
                 
     def ls_cmd(self, command, args):
         path = self.fs.current_dir
@@ -128,6 +134,18 @@ cat [file]    - Display file contents
 clear         - Clear terminal
 help          - Show this help message"""
         cli.display_output_cmd(help_text, command)
+
+    def cat_cmd(self, command, args):
+        if not args:
+            cli.display_output_cmd("cat: missing file operand", command)
+            return
+        path = self.fs.get_absolute_path(args)
+        if not self.fs.path_exists(path):
+            cli.display_output_cmd(f"cat: {args}: No such file or directory", command)
+        if self.fs.is_file(path):
+            cli.display_output_cmd(self.fs.filesystem[path]["content"], command)
+        else:
+            cli.display_output_cmd(f"cat: {args}: Is a directory", command)
 
 
 class CLI:
