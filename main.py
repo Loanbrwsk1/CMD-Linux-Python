@@ -4,8 +4,6 @@
 
 #? Imports
 import customtkinter as ctk
-import json
-import os
 
 #? Classes
 class Filesysteme:
