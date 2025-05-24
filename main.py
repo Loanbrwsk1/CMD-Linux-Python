@@ -70,7 +70,7 @@ class Terminal:
             cli.display_output("\n")
             return
         cmd = parts[0]
-        args = parts[1] if len(parts) > 1 else ""
+        args = parts[1:] if len(parts) > 1 else ""
         cli.entry.delete(0, len(command))
 
         if cmd == "ls":
@@ -95,6 +95,10 @@ class Terminal:
             self.rmdir(command, args)
         elif cmd == "nano":
             self.nano(command, args)
+        elif cmd == "cp":
+            self.cp(command, args)
+        elif cmd == "mv":
+            self.mv(command, args)
         elif cmd == "quit" or cmd == "exit":
             self.quit()
         else:
@@ -103,12 +107,12 @@ class Terminal:
     def ls(self, command, args):
         path = self.fs.current_dir
         if args:
-            path = self.fs.get_absolute_path(args)
+            path = self.fs.get_absolute_path(args[0])
         if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"ls: cannot access '{args if args else path}': No such file or directory", command)
+            cli.display_output_cmd(f"ls: cannot access '{args[0] if args[0] else path}': No such file or directory", command)
             return
         if not self.fs.is_directory(path):
-            cli.display_output_cmd(f"ls: {args if args else path}: Not a directory", command)
+            cli.display_output_cmd(f"ls: {args[0] if args[0] else path}: Not a directory", command)
             return
         self.output = self.fs.filesystem[path]["content"]
         cli.display_output_ls(self.output, path, command)
@@ -122,12 +126,12 @@ class Terminal:
     def cd(self, command, args):
         if not args:
                 self.fs.current_dir = "/home/user"
-        elif args in self.fs.filesystem[self.fs.current_dir]["content"] and self.fs.filesystem[self.fs.current_dir]["type"] == "directory":
-            self.fs.current_dir += f"/{args}"
-        elif args == "..":
-            self.fs.current_dir = self.fs.get_absolute_path(args)
+        elif args[0] in self.fs.filesystem[self.fs.current_dir]["content"] and self.fs.filesystem[self.fs.current_dir]["type"] == "directory":
+            self.fs.current_dir += f"/{args[0]}"
+        elif args[0] == "..":
+            self.fs.current_dir = self.fs.get_absolute_path(args[0])
         else:
-            cli.display_output_cmd(f"bash: cd: {args}: No such file or directory", command)
+            cli.display_output_cmd(f"bash: cd: {args[0]}: No such file or directory", command)
             return
         cli.display_output_cmd(self.fs.current_dir, command)
 
@@ -150,12 +154,12 @@ help          - Show this help message"""
         if not args:
             cli.display_output_cmd("cat: missing file operand", command)
             return
-        path = self.fs.get_absolute_path(args)
+        path = self.fs.get_absolute_path(args[0])
         if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"cat: {args}: No such file or directory", command)
+            cli.display_output_cmd(f"cat: {args[0]}: No such file or directory", command)
             return
         if not self.fs.is_file(path):
-            cli.display_output_cmd(f"cat: {args}: Is a directory", command)
+            cli.display_output_cmd(f"cat: {args[0]}: Is a directory", command)
             return
         cli.display_output_cmd(self.fs.filesystem[path]["content"], command)
 
@@ -163,79 +167,81 @@ help          - Show this help message"""
         if not args:
             cli.display_output_cmd("touch: missing file operand", command)
             return
-        path = f"{self.fs.current_dir}/{args}"
+        path = f"{self.fs.current_dir}/{args[0]}"
         if not path in self.fs.filesystem:
-            self.fs.filesystem[f"{self.fs.current_dir}/{args}"] = {"type" : "file", "content" : ""}
-            self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(args)
+            self.fs.filesystem[f"{self.fs.current_dir}/{args[0]}"] = {"type" : "file", "content" : ""}
+            self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(args[0])
         cli.display_output_cmd("", command)
 
     def rm(self, command, args):
         if not args:
             cli.display_output_cmd("rm: missing file operand", command)
             return
-        path = self.fs.get_absolute_path(args)
+        path = self.fs.get_absolute_path(args[0])
         if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"rm: {args}: No such file", command)
+            cli.display_output_cmd(f"rm: {args[0]}: No such file", command)
             return
         if not self.fs.is_file(path):
-            cli.display_output_cmd(f"rm: {args}: Is a directory", command)
+            cli.display_output_cmd(f"rm: {args[0]}: Is a directory", command)
             return
         self.fs.filesystem.pop(path)
         for v in self.fs.filesystem.values():
-            if args in v["content"]:
-                v["content"].remove(args)
+            if args[0] in v["content"]:
+                v["content"].remove(args[0])
                 cli.display_output_cmd("", command)
                 return
+        cli.display_output_cmd("", command)
         
     def mkdir(self, command, args):
         if not args:
             cli.display_output_cmd("mkdir: missing directory operand", command)
             return
-        path = f"{self.fs.current_dir}/{args}"
-        if not path in self.fs.filesystem:
-            self.fs.filesystem[f"{self.fs.current_dir}/{args}"] = {"type" : "directory", "content" : []}
-            self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(args)
+        path = f"{self.fs.current_dir}/{args[0]}"
+        if path not in self.fs.filesystem:
+            self.fs.filesystem[path] = {"type" : "directory", "content" : []}
+            self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(str(args[0]))
         cli.display_output_cmd("", command)
 
     def rmdir(self, command, args):
         if not args:
             cli.display_output_cmd("rmdir: missing directory operand", command)
             return
-        path = self.fs.get_absolute_path(args)
+        path = self.fs.get_absolute_path(args[0])
         if not self.fs.path_exists(path):
             cli.display_output_cmd(f"rmdir: {args}: No such directory", command)
             return
         if self.fs.is_file(path):
-            cli.display_output_cmd(f"rmdir: {args}: Is a file", command)
+            cli.display_output_cmd(f"rmdir: {args[0]}: Is a file", command)
             return
         self.fs.filesystem.pop(path)
         for v in self.fs.filesystem.values():
-            if args in v["content"]:
-                v["content"].remove(args)
+            if args[0] in v["content"]:
+                v["content"].remove(args[0])
                 cli.display_output_cmd("", command)
                 return
+        cli.display_output_cmd("", command)
         
     def quit(self):
         cli.running = False
         cli.window.destroy()
 
     def nano(self, command, args):
-        if "/" in args:
-            cli.display_output_cmd(f"nano: {args}: Don't use '/'", command)
+        if "/" in args[0]:
+            cli.display_output_cmd(f"nano: {args[0]}: Don't use '/'", command)
             return
         if not args:
             cli.display_output_cmd("nano: missing file operand", command)
             return
-        path = self.fs.get_absolute_path(args)
+        path = self.fs.get_absolute_path(args[0])
         if self.fs.is_directory(path):
-            cli.display_output_cmd(f"nano: {args}: No such file")
+            cli.display_output_cmd(f"nano: {args[0]}: No such file")
             return
         if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"nano: {args}: No such directory")
+            cli.display_output_cmd(f"nano: {args[0]}: No such directory")
             return
         self.nano_top_level = ctk.CTkToplevel(cli.window, fg_color="#000000")
         self.nano_top_level.geometry("800x420+640+80")
-        self.nano_top_level.title(f"nano: {args}")
+        self.nano_top_level.title(f"nano: {args[0]}")
         self.nano_textbox = ctk.CTkTextbox(self.nano_top_level, width=806, height=426, font=("Trebuchet MS", 15), fg_color="#000000")
         cli.display_output_cmd("", command)
         self.nano_top_level.bind("<Alt_L>", lambda _:self.save_file(path))
@@ -247,6 +253,35 @@ help          - Show this help message"""
         self.fs.filesystem[path]["content"] = text
         self.nano_top_level.destroy()
 
+    def cp(self, command, args):
+        if len(args) < 2:
+            cli.display_output_cmd(f"cp: missing destination file operand after {args[0]}", command)
+            return
+        path1 = self.fs.get_absolute_path(args[0])
+        path2 = self.fs.get_absolute_path(args[1])
+        if not self.fs.path_exists(path1):
+            cli.display_output_cmd(f"cp: {args[0]}: Not such file or directory", command)
+            return
+        if not self.fs.path_exists(path2):
+            cli.display_output_cmd(f"cp: {args[1]}: Not such file or directory", command)
+            return
+        if self.fs.is_file(path1) and self.fs.is_directory(path2):
+            self.fs.filesystem[f"{path2}/{args[0]}"] = self.fs.filesystem[path1]
+            self.fs.filesystem[path2]["content"].append(args[0])
+        elif self.fs.is_file(path1) and self.fs.is_file(path2):
+            self.fs.filesystem[path2] = self.fs.filesystem[path1]
+        elif self.fs.is_directory(path1) and self.fs.is_directory(path2):
+            self.fs.filesystem[f"{path2}/{args[0]}"] = self.fs.filesystem[path1]
+            self.fs.filesystem[path2]["content"].append(args[0])
+            for i in self.fs.filesystem[path1]["content"]:
+                self.fs.filesystem[f"{path2}/{args[0]}/{i}"] = self.fs.filesystem[f"{self.fs.get_absolute_path(f"{path1}/{i}")}"]
+        else:
+            cli.display_output_cmd(f"cp: cannot overwrite non-directory {args[0]} with directory {args[1]}", command)
+        cli.display_output_cmd("", command)
+
+
+    def mv(self, command, args):
+        pass
         
 class CLI:
     def __init__(self):
