@@ -137,17 +137,19 @@ class Terminal:
 
     def help(self, command):
         help_text = """Available commands:
-ls [path]     - List directory contents
-pwd           - Print working directory
-cd [path]     - Change directory
-cat [file]    - Display file contents
-touch [file]  - Create a file
-rm [file]     - Delete a file
-mkdir [dir]   - Create a directory
-rmdir [dir]   - Delete a directory
-nano [file]   - Edit a file
-clear         - Clear terminal
-help          - Show this help message"""
+ls [path]                 - List directory contents
+pwd                       - Print working directory
+cd [path]                 - Change directory
+cat [file]                - Display file contents
+touch [file]              - Create a file
+rm [file]                 - Delete a file
+mkdir [dir]               - Create a directory
+rmdir [dir]               - Delete a directory
+nano [file]               - Edit a file. [Alt] to quit
+cp [source] [destination] - Copy source into destination
+mv [source] [destination] - Cut source into destination
+clear                     - Clear terminal
+help                      - Show this help message"""
         cli.display_output_cmd(help_text, command)
 
     def cat(self, command, args):
@@ -163,7 +165,7 @@ help          - Show this help message"""
             return
         cli.display_output_cmd(self.fs.filesystem[path]["content"], command)
 
-    def touch(self, command, args):
+    def touch(self, command, args, from_mv=False):
         if not args:
             cli.display_output_cmd("touch: missing file operand", command)
             return
@@ -171,9 +173,10 @@ help          - Show this help message"""
         if not path in self.fs.filesystem:
             self.fs.filesystem[f"{self.fs.current_dir}/{args[0]}"] = {"type" : "file", "content" : ""}
             self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(args[0])
-        cli.display_output_cmd("", command)
+        if not from_mv:
+            cli.display_output_cmd("", command)
 
-    def rm(self, command, args):
+    def rm(self, command, args, from_mv=False):
         if not args:
             cli.display_output_cmd("rm: missing file operand", command)
             return
@@ -188,11 +191,13 @@ help          - Show this help message"""
         for v in self.fs.filesystem.values():
             if args[0] in v["content"]:
                 v["content"].remove(args[0])
-                cli.display_output_cmd("", command)
+                if not from_mv:
+                    cli.display_output_cmd("", command)
                 return
-        cli.display_output_cmd("", command)
+        if not from_mv:
+            cli.display_output_cmd("", command)
         
-    def mkdir(self, command, args):
+    def mkdir(self, command, args, from_mv=False):
         if not args:
             cli.display_output_cmd("mkdir: missing directory operand", command)
             return
@@ -200,9 +205,10 @@ help          - Show this help message"""
         if path not in self.fs.filesystem:
             self.fs.filesystem[path] = {"type" : "directory", "content" : []}
             self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(str(args[0]))
-        cli.display_output_cmd("", command)
+        if not from_mv:
+            cli.display_output_cmd("", command)
 
-    def rmdir(self, command, args):
+    def rmdir(self, command, args, from_mv=False):
         if not args:
             cli.display_output_cmd("rmdir: missing directory operand", command)
             return
@@ -217,9 +223,11 @@ help          - Show this help message"""
         for v in self.fs.filesystem.values():
             if args[0] in v["content"]:
                 v["content"].remove(args[0])
-                cli.display_output_cmd("", command)
+                if not from_mv:
+                    cli.display_output_cmd("", command)
                 return
-        cli.display_output_cmd("", command)
+        if not from_mv:
+            cli.display_output_cmd("", command)
         
     def quit(self):
         cli.running = False
@@ -279,9 +287,37 @@ help          - Show this help message"""
             cli.display_output_cmd(f"cp: cannot overwrite non-directory {args[0]} with directory {args[1]}", command)
         cli.display_output_cmd("", command)
 
-
     def mv(self, command, args):
-        pass
+        if len(args) < 2:
+            cli.display_output_cmd(f"mv: missing destination file operand after {args[0]}", command)
+            return
+        path1 = self.fs.get_absolute_path(args[0])
+        path2 = self.fs.get_absolute_path(args[1])
+        if not self.fs.path_exists(path1):
+            cli.display_output_cmd(f"mv: {args[0]}: Not such file or directory", command)
+            return
+        if not self.fs.path_exists(path2):
+            if self.fs.is_file(path1):
+                self.touch(command, [args[1]], True)
+            else:
+                self.mkdir(command, [args[1]], True)
+        if self.fs.is_file(path1) and self.fs.is_directory(path2):
+            self.fs.filesystem[f"{path2}/{args[0]}"] = self.fs.filesystem[path1]
+            self.fs.filesystem[path2]["content"].append(args[0])
+            self.rm(command, [args[0]], True)
+        elif self.fs.is_file(path1) and self.fs.is_file(path2):
+            self.fs.filesystem[path2] = self.fs.filesystem[path1]
+            self.rm(command, [args[0]], True)
+        elif self.fs.is_directory(path1) and self.fs.is_directory(path2):
+            self.fs.filesystem[f"{path2}/{args[0]}"] = self.fs.filesystem[path1]
+            self.fs.filesystem[path2]["content"].append(args[0])
+            for i in self.fs.filesystem[path1]["content"]:
+                self.fs.filesystem[f"{path2}/{args[0]}/{i}"] = self.fs.filesystem[f"{self.fs.get_absolute_path(f"{path1}/{i}")}"]
+            self.rmdir(command, [args[0]], True)
+        else:
+            cli.display_output_cmd(f"mv: cannot overwrite non-directory {args[0]} with directory {args[1]}", command)
+        cli.display_output_cmd("", command)
+        
         
 class CLI:
     def __init__(self):
