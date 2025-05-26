@@ -99,6 +99,14 @@ class Terminal:
             self.cp(command, args)
         elif cmd == "mv":
             self.mv(command, args)
+        elif cmd == "loan&leo":
+            self.mystere(command)
+        elif cmd == "maya":
+            self.maya(command)
+        elif cmd == "miam":
+            self.crumble(command)
+        elif cmd == "<3":
+            self.heart(command)
         elif cmd == "quit" or cmd == "exit":
             self.quit()
         else:
@@ -126,12 +134,15 @@ class Terminal:
     def cd(self, command, args):
         if not args:
                 self.fs.current_dir = "/home/user"
-        elif args[0] in self.fs.filesystem[self.fs.current_dir]["content"] and self.fs.filesystem[self.fs.current_dir]["type"] == "directory":
+                cli.display_output_cmd(self.fs.current_dir, command)
+                return
+        path = self.fs.get_absolute_path(args[0])
+        if args[0] in self.fs.filesystem[self.fs.current_dir]["content"] and self.fs.is_directory(path):
             self.fs.current_dir += f"/{args[0]}"
         elif args[0] == "..":
             self.fs.current_dir = self.fs.get_absolute_path(args[0])
         else:
-            cli.display_output_cmd(f"bash: cd: {args[0]}: No such file or directory", command)
+            cli.display_output_cmd(f"bash: cd: '{args[0]}': No such directory", command)
             return
         cli.display_output_cmd(self.fs.current_dir, command)
 
@@ -158,63 +169,69 @@ help                      - Show this help message"""
             return
         path = self.fs.get_absolute_path(args[0])
         if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"cat: {args[0]}: No such file or directory", command)
+            cli.display_output_cmd(f"cat: '{args[0]}': No such file or directory", command)
             return
         if not self.fs.is_file(path):
-            cli.display_output_cmd(f"cat: {args[0]}: Is a directory", command)
+            cli.display_output_cmd(f"cat: '{args[0]}': Is a directory", command)
             return
         cli.display_output_cmd(self.fs.filesystem[path]["content"], command)
 
-    def touch(self, command, args, from_mv=False):
+    def touch(self, command, args, from_other_command=False):
         if not args:
             cli.display_output_cmd("touch: missing file operand", command)
+            return
+        if "/" in args[0]:
+            cli.display_output_cmd(f"bash: touch: '{args[0]}': Cannot user '/' in name", command)
             return
         path = f"{self.fs.current_dir}/{args[0]}"
         if not path in self.fs.filesystem:
             self.fs.filesystem[f"{self.fs.current_dir}/{args[0]}"] = {"type" : "file", "content" : ""}
             self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(args[0])
-        if not from_mv:
+        if not from_other_command:
             cli.display_output_cmd("", command)
 
-    def rm(self, command, args, from_mv=False):
+    def rm(self, command, args, from_other_command=False):
         if not args:
             cli.display_output_cmd("rm: missing file operand", command)
             return
         path = self.fs.get_absolute_path(args[0])
         if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"rm: {args[0]}: No such file", command)
+            cli.display_output_cmd(f"rm: '{args[0]}': No such file", command)
             return
         if not self.fs.is_file(path):
-            cli.display_output_cmd(f"rm: {args[0]}: Is a directory", command)
+            cli.display_output_cmd(f"rm: '{args[0]}': Is a directory", command)
             return
         self.fs.filesystem.pop(path)
         for v in self.fs.filesystem.values():
             if args[0] in v["content"]:
                 v["content"].remove(args[0])
-                if not from_mv:
+                if not from_other_command:
                     cli.display_output_cmd("", command)
                 return
-        if not from_mv:
+        if not from_other_command:
             cli.display_output_cmd("", command)
         
-    def mkdir(self, command, args, from_mv=False):
+    def mkdir(self, command, args, from_other_command=False):
         if not args:
             cli.display_output_cmd("mkdir: missing directory operand", command)
+            return
+        if "/" in args[0]:
+            cli.display_output_cmd(f"bash: mkdir: '{args[0]}': Cannot user '/' in name", command)
             return
         path = f"{self.fs.current_dir}/{args[0]}"
         if path not in self.fs.filesystem:
             self.fs.filesystem[path] = {"type" : "directory", "content" : []}
             self.fs.filesystem[f"{self.fs.current_dir}"]["content"].append(str(args[0]))
-        if not from_mv:
+        if not from_other_command:
             cli.display_output_cmd("", command)
 
-    def rmdir(self, command, args, from_mv=False):
+    def rmdir(self, command, args, from_other_command=False):
         if not args:
             cli.display_output_cmd("rmdir: missing directory operand", command)
             return
         path = self.fs.get_absolute_path(args[0])
         if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"rmdir: {args}: No such directory", command)
+            cli.display_output_cmd(f"rmdir: {args[0]}: No such directory", command)
             return
         if self.fs.is_file(path):
             cli.display_output_cmd(f"rmdir: {args[0]}: Is a file", command)
@@ -223,10 +240,10 @@ help                      - Show this help message"""
         for v in self.fs.filesystem.values():
             if args[0] in v["content"]:
                 v["content"].remove(args[0])
-                if not from_mv:
+                if not from_other_command:
                     cli.display_output_cmd("", command)
                 return
-        if not from_mv:
+        if not from_other_command:
             cli.display_output_cmd("", command)
         
     def quit(self):
@@ -234,27 +251,28 @@ help                      - Show this help message"""
         cli.window.destroy()
 
     def nano(self, command, args):
-        if "/" in args[0]:
-            cli.display_output_cmd(f"nano: {args[0]}: Don't use '/'", command)
-            return
         if not args:
             cli.display_output_cmd("nano: missing file operand", command)
             return
+        if "/" in args[0]:
+            cli.display_output_cmd(f"nano: {args[0]}: Don't use '/'", command)
+            return
+        if not self.fs.path_exists(f"{self.fs.current_dir}/{args[0]}"):
+            self.touch(command, [args[0]], True)
         path = self.fs.get_absolute_path(args[0])
         if self.fs.is_directory(path):
             cli.display_output_cmd(f"nano: {args[0]}: No such file")
             return
-        if not self.fs.path_exists(path):
-            cli.display_output_cmd(f"nano: {args[0]}: No such directory")
-            return
-        self.nano_top_level = ctk.CTkToplevel(cli.window, fg_color="#000000")
+        self.nano_top_level = ctk.CTkToplevel(fg_color="#000000")
         self.nano_top_level.geometry("800x420+640+80")
+        self.nano_top_level.resizable(False, False)
         self.nano_top_level.title(f"nano: {args[0]}")
+        self.nano_top_level.iconbitmap("icons/nano-icon.ico")
         self.nano_textbox = ctk.CTkTextbox(self.nano_top_level, width=806, height=426, font=("Trebuchet MS", 15), fg_color="#000000")
-        cli.display_output_cmd("", command)
         self.nano_top_level.bind("<Alt_L>", lambda _:self.save_file(path))
         self.nano_textbox.insert("end", self.fs.filesystem[path]["content"])
         self.nano_textbox.place(x=-3, y=-3)
+        cli.display_output_cmd("", command)
     
     def save_file(self, path):
         text = self.nano_textbox.get("0.0", "end")
@@ -262,6 +280,9 @@ help                      - Show this help message"""
         self.nano_top_level.destroy()
 
     def cp(self, command, args):
+        if not args:
+            cli.display_output_cmd("cp: missing file operand", command)
+            return
         if len(args) < 2:
             cli.display_output_cmd(f"cp: missing destination file operand after {args[0]}", command)
             return
@@ -288,6 +309,9 @@ help                      - Show this help message"""
         cli.display_output_cmd("", command)
 
     def mv(self, command, args):
+        if not args:
+            cli.display_output_cmd("mv: missing file operand", command)
+            return
         if len(args) < 2:
             cli.display_output_cmd(f"mv: missing destination file operand after {args[0]}", command)
             return
@@ -318,30 +342,108 @@ help                      - Show this help message"""
             cli.display_output_cmd(f"mv: cannot overwrite non-directory {args[0]} with directory {args[1]}", command)
         cli.display_output_cmd("", command)
         
+    def mystere(self, command):
+        cli.display_output_cmd("""         _nnnn_                      
+        dGGGGMMb     ,''''''''''''''''''''''''''''''''''''''''''''.
+       @p~qp~~qMb    | Hello, this app was made by Loan and Leo ! |
+       M|@||@) M|   _;............................................'
+       @,----.JM| -'
+      JS^\\__/  qKL
+     dZP        qKRb
+    dZP          qKKb
+   fZP            SMMb
+   HZM            MMMM
+   FqM            MMMM
+ __| ".        |\\dS"qML
+ |    `.       | `' \\Zq
+_)      \\.___.,|     .'
+\\____   )MMMMMM|   .'
+     `-'       `--' hjm""", command)
         
+    def maya(self, command):
+        cli.display_output_cmd("""
+   \\\\\\|||///
+ .  ======= 
+/ \\| O   O |
+\\ / \\`___'/ 
+ #   _| |_
+(#) (     )  
+ #\\//|* *|\\\\ 
+ #\\/(  *  )/   
+ #   =====  
+ #   ( U ) 
+ #   || ||
+.#---'| |`----.
+`#----' `-----'""", command)
+
+    def crumble(self, command):
+        cli.display_output_cmd(""" Le crumble salé aux deux patates de Mr Galand
+                               
+                   .
+                  / `.
+                .'... `-.
+              .'.. .   ..\\
+             /. . . .   ..`.
+            /...  ... .    .\\
+           /.. . ........   .\\
+         .'.   ...   ......  .|
+       .' ... . ..... . ..--'.|
+     .' ...  ...   ._.--'    .|
+   .'... . ...  _.-'O   OO O .|
+  /... .___.---'O OO .O. OO O.|
+ /__.--' OO O  .OO O  OO O ...|
+ | OO OO O OO . .O. OO O  ..O.|
+ (O. OO. .O O O O  OO  ..OO O.|
+ ( OO .O. O  O  OO............|
+ (OOO........O_______.-------'
+ |_____.-----'""", command)
+
+    def heart(self, command):
+        cli.display_output_cmd("""      _____           _____
+  ,ad8PPPP88b,     ,d88PPPP8ba,
+ d8P"      "Y8b, ,d8P"      "Y8b
+dP'           "8a8"           `Yd
+8(              "              )8
+I8                             8I
+ Yb,                         ,dP
+  "8a,                     ,a8"
+    "8a,                 ,a8"
+      "Yba             adP"
+        `Y8a         a8P'
+          `88,     ,88'
+            "8b   d8"
+             "8b d8"
+              `888'
+                """, command)
+
 class CLI:
     def __init__(self):
         ctk.set_appearance_mode("dark")
         self.terminal = Terminal()
         self.window = ctk.CTk()
         self.window.title("CMD")
-        self.window.configure(background="#000000")
+        self.window.iconbitmap("icons/terminal-icon.ico")
+        self.window.configure(fg_color="#000000")
         self.window.geometry("800x420+240+80")
         self.window.resizable(width=False, height=False)
         self.prompt = f"(user@linux-device)-[{self.terminal.fs.current_dir}] $"
-        self.entry = ctk.CTkEntry(self.window, font=("Trebuchet MS", 15), width=780)
+        self.entry = ctk.CTkEntry(self.window, font=("Terminal", 15), width=780, border_color="#FFFFFF", fg_color="#000000", border_width=1, placeholder_text="Enter your commands here", placeholder_text_color="#ECECEC")
         self.entry.place(x=10, y=10)
-        self.output_display = ctk.CTkTextbox(self.window, width=780, height=370, fg_color="#000000", font=("Trebuchet MS", 15))
+        self.output_display = ctk.CTkTextbox(self.window, width=780, height=370, fg_color="#000000", font=("Terminal", 15), border_color="#FFFFFF", border_width=1, text_color="#FFFFFF")
         self.output_display.insert("end", f"{self.prompt} ")
+        self.output_display.configure(state="disabled")
         self.output_display.place(x=10, y=45)
         self.window.bind("<Return>", self.execute_command)
         self.running = True
 
     def execute_command(self, event):
         command = self.entry.get()
+        self.output_display.configure(state="normal")
         self.terminal.execute_command(command)
+        self.window.title(command)
         if self.running:
             self.display_output(f"{self.get_prompt()} ")
+        self.output_display.configure(state="disabled")
 
     def get_prompt(self):
         return f"(user@linux-device)-[{self.terminal.fs.current_dir}] $"
