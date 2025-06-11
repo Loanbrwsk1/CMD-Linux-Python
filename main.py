@@ -4,6 +4,7 @@
 
 #? Imports
 import customtkinter as ctk
+import subprocess
 import os
 
 #? Classes
@@ -114,7 +115,7 @@ class Terminal:
             self.quit()
         else:
             cli.display_output("Command not found", command)
-             
+            
     def ls(self, command:str, args:list[str]):
         path = self.fs.current_dir
         if args:
@@ -346,7 +347,10 @@ help                      - Show this help message"""
         cli.display_output("", command)
         
     def ps(self, command:str):
-        cli.display_output(f"{os.popen('tasklist').read()}", command)
+        if os.name == "posix":
+            cli.display_output(f"{subprocess.run(["ps"], capture_output=True, text=True).stdout}", command)
+        elif os.name == "nt":
+            cli.display_output(f"{os.popen('tasklist').read()}", command)
 
     def mystere(self, command:str):
         cli.display_output("""         _nnnn_                      
